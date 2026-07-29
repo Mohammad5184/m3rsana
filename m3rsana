@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+M3RSANA_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export M3RSANA_ROOT
+M3RSANA_VERSION="$(<"$M3RSANA_ROOT/VERSION")"
+export M3RSANA_VERSION
+
+# shellcheck source=lib/config.sh
+. "$M3RSANA_ROOT/lib/config.sh"
+load_config
+# shellcheck source=lib/ui.sh
+. "$M3RSANA_ROOT/lib/ui.sh"
+ui_init
+# shellcheck source=lib/logger.sh
+. "$M3RSANA_ROOT/lib/logger.sh"
+# shellcheck source=lib/system.sh
+. "$M3RSANA_ROOT/lib/system.sh"
+# shellcheck source=lib/errors.sh
+. "$M3RSANA_ROOT/lib/errors.sh"
+# shellcheck source=lib/module_loader.sh
+. "$M3RSANA_ROOT/lib/module_loader.sh"
+trap 'm3rsana_error_handler "$LINENO" "$BASH_COMMAND"' ERR
+module_load_all
+
+show_help() {
+  cat <<USAGE
+M3rsana v${M3RSANA_VERSION}
+
+Usage:
+  m3rsana                         Open interactive menu
+  m3rsana dashboard               Show system dashboard
+  m3rsana health|doctor           Run health checks
+  m3rsana cleanup --dry-run       Preview cleanup targets
+  m3rsana cleanup                 Open cleanup module
+  m3rsana modules                 List loaded modules
+  m3rsana version                 Print version
+  m3rsana help                    Show this help
+USAGE
+}
+
+show_modules() {
+  ui_section "Loaded Modules"
+  local item
+  for item in "${M3RSANA_MODULES[@]}"; do printf ' - %s\n' "$item"; done
+}
+
+interactive_menu() {
+  local choice
+  while true; do
+    clear 2>/dev/null || true
+    ui_header "$M3RSANA_VERSION"
+    module_run dashboard
+    cat <<'MENU'
+
+  1) Health Check
+  2) Cleanup Preview
+  3) Cleanup Module
+  4) Loaded Modules
+  5) About
+  0) Exit
+MENU
+    printf '\nSelect an option: '
+    read -r choice
+    case "$choice" in
+      1) module_run health ;;
+      2) module_cleanup_preview ;;
+      3) module_run cleanup ;;
+      4) show_modules ;;
+      5) module_run about ;;
+      0) return 0 ;;
+      *) ui_warn "Invalid option." ;;
+    esac
+    printf '\nPress Enter to continue...'
+    read -r _
+  done
+}
+
+main() {
+  local command="${1:-menu}"
+  case "$command" in
+    menu) interactive_menu ;;
+    dashboard) ui_header "$M3RSANA_VERSION"; module_run dashboard ;;
+    health|doctor) ui_header "$M3RSANA_VERSION"; module_run health ;;
+    cleanup)
+      if [[ "${2:-}" == "--dry-run" || "${2:-}" == "preview" ]]; then module_cleanup_preview
+      else ui_header "$M3RSANA_VERSION"; module_run cleanup; fi ;;
+    modules) ui_header "$M3RSANA_VERSION"; show_modules ;;
+    about) ui_header "$M3RSANA_VERSION"; module_run about ;;
+    version|--version|-v) printf 'M3rsana %s\n' "$M3RSANA_VERSION" ;;
+    help|--help|-h) show_help ;;
+    *) ui_error "Unknown command: $command"; show_help; return 1 ;;
+  esac
+}
+
+log_debug "M3rsana started: $*"
+main "$@"
