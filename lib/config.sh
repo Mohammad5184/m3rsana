@@ -29,7 +29,7 @@ config_load_file() {
       value="${value%\'}"; value="${value#\'}"
       if config_valid_key "$key"; then
         printf -v "$key" '%s' "$value"
-        export "$key"
+        export "${key?}"
       fi
     fi
   done < "$file"
