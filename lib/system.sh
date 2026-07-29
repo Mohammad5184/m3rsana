@@ -89,6 +89,16 @@ system_memory_usage() {
   }'
 }
 
+system_swap_usage() {
+  free | awk '/Swap:/ {
+    if ($2 <= 0) {
+      print "disabled"
+    } else {
+      printf "%.0f", ($3 / $2) * 100
+    }
+  }'
+}
+
 system_memory_human() {
   free -h | awk '/Mem:/ {
     print $3 " / " $2 " (" sprintf("%.0f", ($3 / $2) * 100) "%)"
